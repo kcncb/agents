@@ -1587,6 +1587,8 @@ class AudioRecognition:
         # blank `_audio_transcript` in between (`clear_user_turn()` after a manual commit), and the turn that
         # reached `on_end_of_turn` would then be empty even though the commit future reported the text.
         turn_transcript = self._audio_transcript if transcript is None else transcript
+        # the confidence scores that belong to that text: one per final, in the same order
+        turn_final_count = len(self._final_transcript_confidence)
         auto_flush = (
             self._vad_base_turn_detection
             and self._stt_pipeline is not None
@@ -1907,6 +1909,9 @@ class AudioRecognition:
                 live_transcript = self._audio_transcript
                 if turn_transcript and live_transcript.startswith(turn_transcript):
                     self._audio_transcript = live_transcript[len(turn_transcript) :].strip()
+                    # the scores of the delivered finals go with the words they described, so
+                    # the next turn averages only its own
+                    del self._final_transcript_confidence[:turn_final_count]
                     if not self._audio_transcript:
                         self._final_transcript_confidence = []
                         self._last_final_transcript_time = None

@@ -204,3 +204,24 @@ async def test_a_later_final_in_the_committed_turn_is_not_delivered_twice() -> N
 
     assert ar._hooks.on_end_of_turn.call_args[0][0].new_transcript == "hello there"
     assert ar._audio_transcript == "world"
+
+
+async def test_only_the_retained_finals_confidence_reaches_the_next_turn() -> None:
+    """Scores travel with their words: a delivered final's confidence is not averaged again."""
+    ar = _make_recognition(min_delay=0.3)
+    ar._last_final_transcript_time = time.time()
+    ar._final_transcript_confidence = [0.2]
+
+    fut = ar._commit_user_turn(audio_detached=False, transcript_timeout=2.0)
+    assert await asyncio.wait_for(fut, timeout=2.0) == "hello there"
+    task = ar._end_of_turn_task
+    assert task is not None
+
+    # a later FINAL extends the buffer with its own score
+    ar._audio_transcript = "hello there world"
+    ar._final_transcript_confidence.append(0.9)
+
+    await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
+
+    assert ar._audio_transcript == "world"
+    assert ar._final_transcript_confidence == [0.9]
